@@ -12,6 +12,14 @@ except ImportError:
 
 PORT = 8195
 
+_ART_DOMAINS = {
+    'lh3.googleusercontent.com', 'lh4.googleusercontent.com',
+    'lh5.googleusercontent.com', 'lh6.googleusercontent.com',
+    'yt3.ggpht.com', 'i.ytimg.com',
+    'i1.ytimg.com', 'i2.ytimg.com', 'i3.ytimg.com', 'i4.ytimg.com',
+    'music.youtube.com',
+}
+
 
 def get_now_playing():
     if not _DBUS_OK:
@@ -276,7 +284,12 @@ class Handler(BaseHTTPRequestHandler):
 
         elif path == '/api/art':
             url = qs.get('url', [''])[0]
-            if not url or not url.startswith('http'):
+            try:
+                parsed_url = urllib.parse.urlparse(url)
+                if parsed_url.scheme not in ('http', 'https') or parsed_url.netloc not in _ART_DOMAINS:
+                    self._send(400, 'text/plain', 'url not allowed')
+                    return
+            except Exception:
                 self._send(400, 'text/plain', 'bad url')
                 return
             try:
