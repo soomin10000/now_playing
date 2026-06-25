@@ -1,0 +1,14 @@
+[Unit]
+Description=Now Playing display
+After=network-online.target
+
+[Service]
+User=simon
+WorkingDirectory=/home/simon/projects/now_playing
+ExecStart=/usr/bin/python3 server.py
+Restart=on-failure
+RestartSec=5
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+
+[Install]
+WantedBy=multi-user.target
