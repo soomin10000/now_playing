@@ -2,7 +2,7 @@
 import json
 import urllib.request
 import urllib.parse
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 try:
     import dbus
@@ -11,6 +11,7 @@ except ImportError:
     _DBUS_OK = False
 
 PORT = 8195
+MAX_ART_BYTES = 8 * 1024 * 1024
 
 _ART_DOMAINS = {
     'lh3.googleusercontent.com', 'lh4.googleusercontent.com',
@@ -296,8 +297,20 @@ class Handler(BaseHTTPRequestHandler):
                 req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
                 with urllib.request.urlopen(req, timeout=5) as resp:
                     ct = resp.headers.get('Content-Type', 'image/jpeg')
-                    data = resp.read()
-                self._send(200, ct, data)
+                    data = resp.read(MAX_ART_BYTES + 1)
+                if len(data) > MAX_ART_BYTES:
+                    self._send(502, 'text/plain', 'image too large')
+                    return
+                # Don't let an upstream response dictate a non-image Content-Type that
+                # the browser could render as HTML/JS on our origin.
+                if not ct.lower().startswith('image/'):
+                    ct = 'application/octet-stream'
+                self.send_response(200)
+                self.send_header('Content-Type', ct)
+                self.send_header('X-Content-Type-Options', 'nosniff')
+                self.send_header('Content-Length', str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
             except Exception as e:
                 self._send(502, 'text/plain', str(e))
 
@@ -306,6 +319,6 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == '__main__':
-    server = HTTPServer(('0.0.0.0', PORT), Handler)
+    server = ThreadingHTTPServer(('0.0.0.0', PORT), Handler)
     print(f'Now Playing on http://0.0.0.0:{PORT}')
     server.serve_forever()
